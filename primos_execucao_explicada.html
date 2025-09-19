@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>n primeiros primos — execução com explicações</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:20px}
+  input,button{font:inherit}
+  pre{background:#111;color:#eee;padding:12px;border-radius:8px;white-space:pre-wrap}
+  table{border-collapse:collapse;width:100%;margin-top:10px}
+  th,td{border:1px solid #ccc;padding:6px 8px;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  canvas{width:100%;height:320px;border:1px solid #ccc;border-radius:8px;margin-top:8px}
+  .muted{color:#666}
+</style>
+
+<h1>n primeiros números primos — com explicações e análise</h1>
+
+<label>n:
+  <input id="n" type="number" value="20" min="1">
+</label>
+<button id="run">Executar</button>
+<pre id="out"></pre>
+
+<h2>Benchmark (análise empírica)</h2>
+<p class="muted">Mede tempo (ms) e número de testes de divisão para vários valores de n. Gera gráfico n × tempo e n × divisões.</p>
+<button id="bench">Rodar benchmark</button>
+<button id="clear">Limpar</button>
+<div id="benchBox"></div>
+<canvas id="chart" width="900" height="320"></canvas>
+
+<script>
+// ===== Implementação simples (divisão de tentativas até √x) =====
+// Contamos "divisões testadas" para análise empírica.
+function ehPrimo(x, counter) {
+  if (x < 2) { counter.ops++; return false; }
+  if (x === 2) { counter.ops++; return true; }
+  if (x % 2 === 0) { counter.ops++; return false; }
+  var limite = Math.floor(Math.sqrt(x));
+  for (var i = 3; i <= limite; i += 2) {
+    counter.ops++;              // conta um teste de divisibilidade
+    if (x % i === 0) return false;
+  }
+  return true;
+}
+
+// Retorna os n primeiros primos + estatísticas
+function primeirosPrimos(n) {
+  var primos = [];
+  var cand = 2;
+  var counter = { ops: 0 };
+  while (primos.length < n) {
+    if (ehPrimo(cand, counter)) primos.push(cand);
+    cand++;
+  }
+  return { primos: primos, ops: counter.ops };
+}
+
+// ===== UI: execução única (com explicações) =====
+var $ = function(id){ return document.getElementById(id); };
+
+$('run').onclick = function(){
+  var n = parseInt($('n').value, 10) || 0;
+  var t0 = performance.now();
+  var res = primeirosPrimos(n);
+  var t1 = performance.now();
+
+  // (a) Explicação de término (para este n)
+  // - O laço adiciona 1 primo por vez e para quando tiver n; como existem
+  //   infinitos primos, após um número finito de candidatos, chegamos a n.
+  var expTermino =
+    "Por que termina (para n="+n+"): o algoritmo coleta 1 primo por vez e\n"+
+    "para quando atingir n. Cada teste verifica até √x (finito). Como existem\n"+
+    "infinitos primos, inevitavelmente chegamos a "+n+" primos.\n";
+
+  // (b) Corretude (para este n)
+  // - ehPrimo(x) só aceita x se não houver divisor entre 2 e ⌊√x⌋.
+  // - Se x fosse composto, teria divisor primo ≤ √x (fato aritmético básico).
+  // - Logo, nenhum composto é aceito; testando candidatos em ordem crescente,
+  //   os n primeiros aceitos são exatamente os n primeiros primos.
+  var expCorretude =
+    "Corretude (para n="+n+"): se um número x não possui divisor entre 2 e √x,\n"+
+    "então é primo. A função ehPrimo(x) verifica exatamente esse intervalo; se\n"+
+    "achar divisor, rejeita (composto); se não achar, aceita (primo). Como os\n"+
+    "candidatos são testados em ordem crescente e paramos ao obter n aceitos,\n"+
+    "temos exatamente os n primeiros primos.\n";
+
+  // (c) Eficiência assintótica (para este n)
+  // - Cada teste: O(√x). Para obter o n-ésimo primo ~ p_n ≈ n log n,
+  //   custo total ~ O(n √(n log n)). Em sala, podemos simplificar como O(n^2).
+  var expComplexidade =
+    "Eficiência assintótica (para n="+n+"): testar primalidade custa O(√x).\n"+
+    "Até o n-ésimo primo (~ n·log n), o custo total fica ~ O(n·√(n·log n)).\n"+
+    "Como cota didática, pode-se declarar O(n²) (pior caso simplificado).\n";
+
+  $('out').textContent =
+    "tempo: "+(t1 - t0).toFixed(3)+" ms\n"+
+    "divisões testadas (aprox): "+res.ops+"\n"+
+    "primos ("+res.primos.length+"): "+res.primos.join(' ')+"\n\n"+
+    "=== Explicações referentes a este n ===\n"+
+    expTermino + "\n" + expCorretude + "\n" + expComplexidade;
+};
+
+// ===== Benchmark: n × tempo e n × divisões =====
+var benchData = [];
+
+$('bench').onclick = function(){
+  var Ns = [10, 30, 50, 100, 200, 300, 500, 800, 1000, 1500, 2000]; // simples
+  benchData = [];
+  var html = '<table><thead><tr><th>n</th><th>tempo (ms)</th><th>divisões</th><th>explicação (resumo)</th></tr></thead><tbody>';
+  for (var k=0;k<Ns.length;k++){
+    var n = Ns[k];
+    var t0 = performance.now();
+    var res = primeirosPrimos(n);
+    var t1 = performance.now();
+    var ms = (t1 - t0);
+    benchData.push({n:n, ms:ms, ops:res.ops});
+
+    // explicação curta por linha (para “cada n gerado”)
+    var resumo =
+      "Termina pois coleta 1 primo/vez até n; correto pois só aceita número\n"+
+      "sem divisor ≤ √x; custo esperado cresce superlinearmente (≈ O(n√(n log n))).";
+
+    html += '<tr>'+
+      '<td>'+n+'</td>'+
+      '<td>'+ms.toFixed(3)+'</td>'+
+      '<td>'+res.ops+'</td>'+
+      '<td style="white-space:pre-wrap;text-align:left">'+resumo+'</td>'+
+    '</tr>';
+  }
+  html += '</tbody></table>';
+  $('benchBox').innerHTML = html;
+  desenharGrafico();
+};
+
+$('clear').onclick = function(){
+  benchData = [];
+  $('benchBox').innerHTML = '';
+  var ctx = $('chart').getContext('2d');
+  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+};
+
+// ===== Gráfico simples em canvas: n×tempo e n×divisões =====
+function desenharGrafico(){
+  var ctx = $('chart').getContext('2d');
+  var W = ctx.canvas.width, H = ctx.canvas.height;
+  ctx.clearRect(0,0,W,H);
+  if (benchData.length === 0) return;
+
+  var M = {l:50,r:20,t:10,b:28};
+  var plotW = W - M.l - M.r, plotH = H - M.t - M.b;
+
+  var maxN = Math.max.apply(null, benchData.map(d=>d.n));
+  var maxT = Math.max.apply(null, benchData.map(d=>d.ms));
+  var maxO = Math.max.apply(null, benchData.map(d=>d.ops));
+
+  function x(n){ return M.l + (n/maxN)*plotW; }
+  function yT(ms){ return M.t + (1 - ms/maxT) * plotH; }
+  function yO(ops){ return M.t + (1 - ops/maxO) * plotH; }
+
+  // eixos
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(M.l, M.t); ctx.lineTo(M.l, H-M.b); ctx.lineTo(W-M.r, H-M.b); ctx.stroke();
+
+  // série tempo
+  ctx.beginPath();
+  for (var i=0;i<benchData.length;i++){
+    var d = benchData[i];
+    if (i===0) ctx.moveTo(x(d.n), yT(d.ms));
+    else ctx.lineTo(x(d.n), yT(d.ms));
+  }
+  ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.stroke();
+
+  // série divisões
+  ctx.beginPath();
+  for (var j=0;j<benchData.length;j++){
+    var e = benchData[j];
+    if (j===0) ctx.moveTo(x(e.n), yO(e.ops));
+    else ctx.lineTo(x(e.n), yO(e.ops));
+  }
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.stroke();
+
+  // legendas
+  ctx.fillStyle = '#222'; ctx.fillRect(M.l+8, M.t+8, 12, 12);
+  ctx.fillStyle = '#22c55e'; ctx.fillRect(M.l+10, M.t+10, 8, 8);
+  ctx.fillStyle = '#000'; ctx.fillText('tempo (ms)', M.l+24, M.t+18);
+
+  ctx.fillStyle = '#222'; ctx.fillRect(M.l+110, M.t+8, 12, 12);
+  ctx.fillStyle = '#3b82f6'; ctx.fillRect(M.l+112, M.t+10, 8, 8);
+  ctx.fillStyle = '#000'; ctx.fillText('divisões', M.l+128, M.t+18);
+}
+</script>
